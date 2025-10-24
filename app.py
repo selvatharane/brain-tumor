@@ -4,8 +4,6 @@ import numpy as np
 from PIL import Image
 import cv2
 
-st.set_option('deprecation.showfileUploaderEncoding', False)
-
 # --- Load models once and cache ---
 @st.cache_resource
 def load_models():
@@ -34,7 +32,7 @@ if uploaded_file:
     scan_type = "CT" if mean_intensity < 100 else "MRI"
     st.info(f"Detected scan type: **{scan_type}**")
 
-    # --- Resize ---
+    # --- Resize to model input size ---
     target_size = (128, 128) if scan_type == "CT" else (300, 300)
     img_resized = cv2.resize(img_array, target_size, interpolation=cv2.INTER_AREA)
 
@@ -46,7 +44,7 @@ if uploaded_file:
 
     st.write(f"✅ Final image shape before prediction: {img_resized.shape}")
 
-    # --- Normalize & expand dims ---
+    # --- Normalize and add batch dimension ---
     img_input = np.expand_dims(img_resized.astype(np.float32)/255.0, axis=0)
 
     # --- Predict ---
