@@ -13,7 +13,7 @@ def load_models():
     custom_objects = {"Swish": tf.keras.activations.swish}  # for EfficientNetB3
     ct_model, mri_model = None, None
 
-    # CT model
+    # Load CT model
     ct_path = "ct_small_cnn.keras"
     if os.path.exists(ct_path):
         try:
@@ -22,9 +22,9 @@ def load_models():
         except Exception as e:
             st.error(f"❌ Failed to load CT model: {e}")
     else:
-        st.error("❌ CT model file not found!")
+        st.warning("⚠️ CT model file not found!")
 
-    # MRI model
+    # Load MRI model
     mri_path = "mri_effb3_finetuned.keras"
     if os.path.exists(mri_path):
         try:
@@ -33,9 +33,9 @@ def load_models():
                                                    compile=False)
             st.success("✅ MRI model loaded successfully")
         except Exception as e:
-            st.error(f"❌ Failed to load MRI model: {e}")
+            st.warning(f"⚠️ Failed to load MRI model: {e}")
     else:
-        st.error("❌ MRI model file not found!")
+        st.warning("⚠️ MRI model file not found!")
 
     return ct_model, mri_model
 
@@ -78,11 +78,15 @@ if uploaded_file:
 
             # Normalize & batch dimension
             img_input = np.expand_dims(img_resized.astype(np.float32)/255.0, axis=0)
-            pred = ct_model.predict(img_input)
-            result = "🧠 Tumor Detected" if pred[0][0] > 0.5 else "✅ No Tumor"
-            st.subheader(f"CT Result: {result}")
+
+            try:
+                pred = ct_model.predict(img_input)
+                result = "🧠 Tumor Detected" if pred[0][0] > 0.5 else "✅ No Tumor"
+                st.subheader(f"CT Result: {result}")
+            except Exception as e:
+                st.error(f"❌ CT prediction failed: {e}")
         else:
-            st.error("❌ CT model not loaded")
+            st.warning("⚠️ CT model not loaded")
 
     elif scan_type == "MRI":
         if mri_model:
@@ -105,6 +109,6 @@ if uploaded_file:
                 result = classes[np.argmax(pred)]
                 st.subheader(f"MRI Result: {result}")
             except Exception as e:
-                st.error(f"❌ MRI prediction failed: {e}")
+                st.warning(f"⚠️ MRI prediction failed: {e}")
         else:
-            st.error("❌ MRI model not loaded")
+            st.warning("⚠️ MRI model not loaded")
