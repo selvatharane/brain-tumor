@@ -4,11 +4,24 @@ import numpy as np
 from PIL import Image
 import cv2
 
-# --- Load models once and cache ---
+# --- Load models safely ---
 @st.cache_resource
 def load_models():
-    ct_model = tf.keras.models.load_model("ct_small_cnn.keras")
-    mri_model = tf.keras.models.load_model("mri_effb3_finetuned.keras")
+    custom_objects = {"Swish": tf.keras.activations.swish}  # for EfficientNetB3 if used
+    try:
+        ct_model = tf.keras.models.load_model("ct_small_cnn.keras", compile=False)
+    except:
+        ct_model = None
+        st.error("CT model could not be loaded!")
+    
+    try:
+        mri_model = tf.keras.models.load_model("mri_effb3_finetuned.keras",
+                                               custom_objects=custom_objects,
+                                               compile=False)
+    except:
+        mri_model = None
+        st.error("MRI model could not be loaded!")
+
     return ct_model, mri_model
 
 ct_model, mri_model = load_models()
@@ -32,7 +45,7 @@ if uploaded_file:
     scan_type = "CT" if mean_intensity < 100 else "MRI"
     st.info(f"Detected scan type: **{scan_type}**")
 
-    # --- Resize to model input size ---
+    # --- Resize ---
     target_size = (128, 128) if scan_type == "CT" else (300, 300)
     img_resized = cv2.resize(img_array, target_size, interpolation=cv2.INTER_AREA)
 
@@ -47,13 +60,19 @@ if uploaded_file:
     # --- Normalize and add batch dimension ---
     img_input = np.expand_dims(img_resized.astype(np.float32)/255.0, axis=0)
 
-    # --- Predict ---
+    # --- Predict safely ---
     if scan_type == "CT":
-        pred = ct_model.predict(img_input)
-        result = "🧠 Tumor Detected" if pred[0][0] > 0.5 else "✅ No Tumor"
+        if ct_model:
+            pred = ct_model.predict(img_input)
+            result = "🧠 Tumor Detected" if pred[0][0] > 0.5 else "✅ No Tumor"
+        else:
+            result = "❌ CT model not loaded"
         st.subheader(f"CT Result: {result}")
     else:
-        pred = mri_model.predict(img_input)
-        classes = ["Meningioma", "Glioma", "Pituitary", "No Tumor"]
-        result = classes[np.argmax(pred)]
+        if mri_model:
+            pred = mri_model.predict(img_input)
+            classes = ["Meningioma", "Glioma", "Pituitary", "No Tumor"]
+            result = classes[np.argmax(pred)]
+        else:
+            result = "❌ MRI model not loaded"
         st.subheader(f"MRI Result: {result}")
