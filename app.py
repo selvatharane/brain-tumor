@@ -11,7 +11,7 @@ def load_models():
     custom_objects = {"Swish": tf.keras.activations.swish}  # for EfficientNetB3 if used
     ct_model, mri_model = None, None
 
-    # --- Load CT model ---
+    # Load CT model
     if os.path.exists("ct_small_cnn.keras"):
         try:
             ct_model = tf.keras.models.load_model("ct_small_cnn.keras", compile=False)
@@ -21,7 +21,7 @@ def load_models():
     else:
         st.error("❌ CT model file not found!")
 
-    # --- Load MRI model ---
+    # Load MRI model
     if os.path.exists("mri_effb3_finetuned.keras"):
         try:
             mri_model = tf.keras.models.load_model("mri_effb3_finetuned.keras",
@@ -51,39 +51,39 @@ if uploaded_file:
     st.image(image, caption="Uploaded Image", use_container_width=True)
     st.write(f"🧩 Original image shape: {img_array.shape}")
 
-    # --- Detect scan type ---
+    # Detect scan type
     mean_intensity = np.mean(img_array)
     scan_type = "CT" if mean_intensity < 100 else "MRI"
     st.info(f"Detected scan type: **{scan_type}**")
 
-    # --- Resize ---
-    target_size = (128, 128) if scan_type == "CT" else (300, 300)
-    img_resized = cv2.resize(img_array, target_size, interpolation=cv2.INTER_AREA)
-
-    # --- Ensure 3 channels ---
-    if len(img_resized.shape) == 2:
-        img_resized = cv2.cvtColor(img_resized, cv2.COLOR_GRAY2RGB)
-    elif img_resized.shape[-1] == 1:
-        img_resized = np.repeat(img_resized, 3, axis=-1)
-
-    # --- Normalize and add batch dimension ---
-    img_input = np.expand_dims(img_resized.astype(np.float32)/255.0, axis=0)
-    st.write(f"✅ Final image shape before prediction: {img_input.shape}")
-
-    # --- Predict safely ---
-    if scan_type == "CT":
-        if ct_model:
-            pred = ct_model.predict(img_input)
-            result = "🧠 Tumor Detected" if pred[0][0] > 0.5 else "✅ No Tumor"
-        else:
-            result = "❌ CT model not loaded"
+    # --- Preprocess image for CT ---
+    if scan_type == "CT" and ct_model:
+        target_size = (128, 128)
+        img_resized = cv2.resize(img_array, target_size, interpolation=cv2.INTER_AREA)
+        # Ensure 3 channels
+        if len(img_resized.shape) == 2:
+            img_resized = cv2.cvtColor(img_resized, cv2.COLOR_GRAY2RGB)
+        elif img_resized.shape[-1] == 1:
+            img_resized = np.repeat(img_resized, 3, axis=-1)
+        img_input = np.expand_dims(img_resized.astype(np.float32)/255.0, axis=0)
+        pred = ct_model.predict(img_input)
+        result = "🧠 Tumor Detected" if pred[0][0] > 0.5 else "✅ No Tumor"
         st.subheader(f"CT Result: {result}")
 
-    else:
-        if mri_model:
-            pred = mri_model.predict(img_input)
-            classes = ["Meningioma", "Glioma", "Pituitary", "No Tumor"]
-            result = classes[np.argmax(pred)]
-        else:
-            result = "❌ MRI model not loaded"
+    # --- Preprocess image for MRI ---
+    elif scan_type == "MRI" and mri_model:
+        target_size = (300, 300)
+        img_resized = cv2.resize(img_array, target_size, interpolation=cv2.INTER_AREA)
+        # Force 3 channels
+        if len(img_resized.shape) == 2:
+            img_resized = cv2.cvtColor(img_resized, cv2.COLOR_GRAY2RGB)
+        elif img_resized.shape[-1] == 1:
+            img_resized = np.repeat(img_resized, 3, axis=-1)
+        img_input = np.expand_dims(img_resized.astype(np.float32)/255.0, axis=0)
+        pred = mri_model.predict(img_input)
+        classes = ["Meningioma", "Glioma", "Pituitary", "No Tumor"]
+        result = classes[np.argmax(pred)]
         st.subheader(f"MRI Result: {result}")
+
+    else:
+        st.error("❌ Model for this scan type is not loaded.")
