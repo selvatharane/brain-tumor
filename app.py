@@ -25,7 +25,7 @@ def load_models():
         st.warning("⚠️ CT model file not found! (Expected file: ct_small_cnn.keras)")
 
     # Load MRI model
-    mri_path = "mri_effb3_top.keras"
+    mri_path = "mri_effb3_finetuned.keras"
     if os.path.exists(mri_path):
         try:
             mri_model = tf.keras.models.load_model(
