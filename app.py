@@ -28,9 +28,11 @@ def load_models():
     mri_path = "mri_effb3_finetuned.keras"
     if os.path.exists(mri_path):
         try:
-            mri_model = tf.keras.models.load_model(mri_path,
-                                                   custom_objects=custom_objects,
-                                                   compile=False)
+            mri_model = tf.keras.models.load_model(
+                mri_path,
+                custom_objects=custom_objects,
+                compile=False
+            )
             st.success("✅ MRI model loaded successfully")
         except Exception as e:
             st.warning(f"⚠️ Failed to load MRI model: {e}")
@@ -38,6 +40,7 @@ def load_models():
         st.warning("⚠️ MRI model file not found!")
 
     return ct_model, mri_model
+
 
 ct_model, mri_model = load_models()
 
@@ -66,18 +69,17 @@ if uploaded_file:
     # -----------------------
     if scan_type == "CT":
         if ct_model:
-            h, w, c = ct_model.input_shape[1:]  # expected input shape
+            h, w, c = ct_model.input_shape[1:]
             img_resized = cv2.resize(img_array, (w, h), interpolation=cv2.INTER_AREA)
 
-            # Adjust channels
+            # Channel fix
             if c == 1 and img_resized.shape[-1] == 3:
                 img_resized = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
                 img_resized = np.expand_dims(img_resized, axis=-1)
             elif c == 3 and img_resized.shape[-1] == 1:
                 img_resized = np.repeat(img_resized, 3, axis=-1)
 
-            # Normalize & batch dimension
-            img_input = np.expand_dims(img_resized.astype(np.float32)/255.0, axis=0)
+            img_input = np.expand_dims(img_resized.astype(np.float32) / 255.0, axis=0)
 
             try:
                 pred = ct_model.predict(img_input)
@@ -90,18 +92,17 @@ if uploaded_file:
 
     elif scan_type == "MRI":
         if mri_model:
-            h, w, c = mri_model.input_shape[1:]  # expected input shape
+            h, w, c = mri_model.input_shape[1:]
             img_resized = cv2.resize(img_array, (w, h), interpolation=cv2.INTER_AREA)
 
-            # Adjust channels
-            if c == 3 and img_resized.shape[-1] == 1:
+            # ✅ Fix: Convert input to grayscale if MRI expects 1 channel
+            if c == 1:
+                gray = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
+                img_resized = np.expand_dims(gray, axis=-1)
+            elif c == 3 and img_resized.shape[-1] == 1:
                 img_resized = np.repeat(img_resized, 3, axis=-1)
-            elif c == 1 and img_resized.shape[-1] == 3:
-                img_resized = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
-                img_resized = np.expand_dims(img_resized, axis=-1)
 
-            # Normalize & batch dimension
-            img_input = np.expand_dims(img_resized.astype(np.float32)/255.0, axis=0)
+            img_input = np.expand_dims(img_resized.astype(np.float32) / 255.0, axis=0)
 
             try:
                 pred = mri_model.predict(img_input)
